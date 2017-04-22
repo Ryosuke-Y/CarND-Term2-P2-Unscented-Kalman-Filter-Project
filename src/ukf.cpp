@@ -12,6 +12,9 @@ using std::vector;
  * Initializes Unscented Kalman filter
  */
 UKF::UKF() {
+
+  is_initialized_ = false;
+
   // if this is false, laser measurements will be ignored (except during init)
   use_laser_ = true;
 
@@ -52,6 +55,34 @@ UKF::UKF() {
 
   Hint: one or more values initialized above might be wildly off...
   */
+
+  // predicted sigma points matrix
+  Xsig_pred_ = MatrixXd(n_x_, 2 * n_aug_ + 1);
+
+  // State dimension
+  n_x_ = 5;
+
+  // Augmented state dimension
+  n_aug_ = n_x_ + 2;
+
+  // Sigma point spreading parameter
+  lambda_ = 3 - n_x_;
+
+  // the current NIS for radar
+  NIS_radar_ = 0.0;
+
+  // the current NIS for laser
+  NIS_laser_ = 0.0;
+
+  // weights of sigma points
+  weights_ = VectorXd(2*n_aug_+1);
+
+  // calculate weights
+  weights_(0) = lambda_/(lambda_+n_aug_);
+  for (int i=1; i<2*n_aug_+1; i++) {
+    weights_(i) = 0.5/(n_aug_+lambda_);
+  }
+
 }
 
 UKF::~UKF() {}
