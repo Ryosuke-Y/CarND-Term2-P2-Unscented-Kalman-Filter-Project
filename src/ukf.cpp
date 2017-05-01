@@ -251,7 +251,8 @@ void UKF::Prediction(double delta_t) {
       VectorXd x_diff = Xsig_pred_.col(i) - x_;
 
       //angle normalization
-      x_diff(3) = tools_.WrapAngle(x_diff(3));
+      while (x_diff(3) > M_PI) x_diff(3) -= 2. * M_PI;
+      while (x_diff(3) < -M_PI) x_diff(3) += 2. * M_PI;
       P_ = P_ + weights_(i) * x_diff * x_diff.transpose();
     }
 
@@ -271,7 +272,100 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   You'll also need to calculate the lidar NIS.
   */
 
+  /*****************************************************************************
+  *  Prediction
+  ****************************************************************************/
 
+　//set measurement dimension, lidar can measure px, py
+
+  int n_z = 2;
+  // 2 x 15
+  MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug_ + 1);
+
+  //transform sigma points into measurement space
+  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
+
+      // extract values for better readability
+      double p_x = Xsig_pred_(0, i);
+      double p_y = Xsig_pred_(1, i);
+
+      // measurement model
+      Zsig(0, i) = p_x;
+      Zsig(1, i) = p_y;
+  }
+
+  //mean predicted measurement
+  VectorXd z_pred = VectorXd(n_z);
+  z_pred.fill(0.0);
+  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
+      z_pred = z_pred + weights_(i) * Zsig.col(i);
+  }
+
+  //measurement covariance matrix S
+  MatrixXd S = MatrixXd(n_z, n_z);
+  S.fill(0.0);
+  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
+      //residual
+      VectorXd z_diff = Zsig.col(i) - z_pred;
+
+      //angle normalization
+      while (z_diff(1) > M_PI) z_diff(1) -= 2. * M_PI;
+      while (z_diff(1) < -M_PI) z_diff(1) += 2. * M_PI;
+
+      S = S + weights_(i) * z_diff * z_diff.transpose();
+  }
+
+  //add measurement noise covariance matrix
+  MatrixXd R = MatrixXd(n_z, n_z);
+  R << std_laspx_ * std_laspx_, 0, 0, std_laspy_ * std_laspy_;
+  S = S + R;
+
+  /*****************************************************************************
+  *  Update
+  ****************************************************************************/
+
+  VectorXd z = VectorXd(n_z);
+  // measurement for laser
+  z << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1];
+
+  // 5 x 2
+  MatrixXd Tc = MatrixXd(n_x_, n_z);
+
+  //calculate cross correlation matrix
+  Tc.fill(0.0);
+  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
+
+      //residual
+      VectorXd z_diff = Zsig.col(i) - z_pred;
+      //angle normalization
+      while (z_diff(1) > M_PI) z_diff(1) -= 2. * M_PI;
+      while (z_diff(1) < -M_PI) z_diff(1) += 2. * M_PI;
+
+      // state difference
+      VectorXd x_diff = Xsig_pred_.col(i) - x_;
+      //angle normalization
+      while (x_diff(3) > M_PI) x_diff(3) -= 2. * M_PI;
+      while (x_diff(3) < -M_PI) x_diff(3) += 2. * M_PI;
+
+      Tc = Tc + weights_(i) * x_diff * z_diff.transpose();
+  }
+
+  //Kalman gain K;
+  MatrixXd K = Tc * S.inverse();
+
+  //residual
+  VectorXd z_diff = z - z_pred;
+
+  //angle normalization
+  while (z_diff(1) > M_PI) z_diff(1) -= 2. * M_PI;
+  while (z_diff(1) < -M_PI) z_diff(1) += 2. * M_PI;
+
+  //update state mean and covariance matrix
+  x_ = x_ + K * z_diff;
+  P_ = P_ - K * S * K.transpose();
+
+  NIS_laser_ = (meas_package.raw_measurements_ - z_pred).transpose() * S.inverse() *
+               (meas_package.raw_measurements_ - z_pred);
 
 }
 
@@ -289,6 +383,101 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   You'll also need to calculate the radar NIS.
   */
 
+  /*****************************************************************************
+  *  Prediction
+  ****************************************************************************/
 
+
+  //set measurement dimension, lidar can measure px, py
+  
+  int n_z = 2;
+
+  // 2 x 15
+  MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug_ + 1);
+
+  //transform sigma points into measurement space
+  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
+
+      // extract values for better readability
+      double p_x = Xsig_pred_(0, i);
+      double p_y = Xsig_pred_(1, i);
+
+      // measurement model
+      Zsig(0, i) = p_x;
+      Zsig(1, i) = p_y;
+  }
+
+  //mean predicted measurement
+  VectorXd z_pred = VectorXd(n_z);
+  z_pred.fill(0.0);
+  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
+      z_pred = z_pred + weights_(i) * Zsig.col(i);
+  }
+
+  //measurement covariance matrix S
+  MatrixXd S = MatrixXd(n_z, n_z);
+  S.fill(0.0);
+  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
+      //residual
+      VectorXd z_diff = Zsig.col(i) - z_pred;
+
+      //angle normalization
+      while (z_diff(1) > M_PI) z_diff(1) -= 2. * M_PI;
+      while (z_diff(1) < -M_PI) z_diff(1) += 2. * M_PI;
+
+      S = S + weights_(i) * z_diff * z_diff.transpose();
+  }
+
+  //add measurement noise covariance matrix
+  MatrixXd R = MatrixXd(n_z, n_z);
+  R << std_laspx_ * std_laspx_, 0, 0, std_laspy_ * std_laspy_;
+  S = S + R;
+
+  /*****************************************************************************
+  *  Update
+  ****************************************************************************/
+
+  VectorXd z = VectorXd(n_z);
+  // measurement for laser
+  z << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1];
+
+  // 5 x 2
+  MatrixXd Tc = MatrixXd(n_x_, n_z);
+
+  //calculate cross correlation matrix
+  Tc.fill(0.0);
+  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
+
+      //residual
+      VectorXd z_diff = Zsig.col(i) - z_pred;
+      //angle normalization
+      while (z_diff(1) > M_PI) z_diff(1) -= 2. * M_PI;
+      while (z_diff(1) < -M_PI) z_diff(1) += 2. * M_PI;
+
+      // state difference
+      VectorXd x_diff = Xsig_pred_.col(i) - x_;
+      //angle normalization
+      while (x_diff(3) > M_PI) x_diff(3) -= 2. * M_PI;
+      while (x_diff(3) < -M_PI) x_diff(3) += 2. * M_PI;
+
+      Tc = Tc + weights_(i) * x_diff * z_diff.transpose();
+  }
+
+  //Kalman gain K;
+  MatrixXd K = Tc * S.inverse();
+
+  //residual
+  VectorXd z_diff = z - z_pred;
+
+  //angle normalization
+  while (z_diff(1) > M_PI) z_diff(1) -= 2. * M_PI;
+  while (z_diff(1) < -M_PI) z_diff(1) += 2. * M_PI;
+
+  //update state mean and covariance matrix
+  x_ = x_ + K * z_diff;
+  P_ = P_ - K * S * K.transpose();
+
+  NIS_laser_ = (meas_package.raw_measurements_ - z_pred).transpose() * S.inverse() *
+               (meas_package.raw_measurements_ - z_pred);
 
 }
