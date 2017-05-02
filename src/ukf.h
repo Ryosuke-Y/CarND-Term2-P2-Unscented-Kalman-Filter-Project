@@ -84,7 +84,6 @@ public:
    */
   virtual ~UKF();
 
-  MatrixXd PredictedSigmaPoints(double timdediff);
 
   /**
    * ProcessMeasurement
