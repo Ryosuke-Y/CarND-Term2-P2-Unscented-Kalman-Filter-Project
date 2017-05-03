@@ -140,11 +140,11 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
    ****************************************************************************/
 
   //compute the time elapsed between the current and previous measurements
-  double time_delta = (meas_package.timestamp_ - time_us_) / 1000000.0;
+  double delta_time = (meas_package.timestamp_ - time_us_) / 1000000.0;
   time_us_ = meas_package.timestamp_;
 
   // Updates x_ and P_
-  Prediction(time_delta);
+  Prediction(delta_time);
 
   /*****************************************************************************
    *  Update
@@ -191,7 +191,7 @@ void UKF::Prediction(double delta_t) {
   P_aug(5,5) = std_a_ * std_a_;
   P_aug(6,6) = std_yawdd_ * std_yawdd_;
 
-  //create square root matrix
+  //create square root of P
   MatrixXd L = P_aug.llt().matrixL();
 
   //create augmented sigma points
@@ -378,7 +378,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   You'll also need to calculate the radar NIS.
   */
 
-  //set measurement dimension, radar can measure r, phi, and r_dot
+  //set measurement dimension, radar can measure rho, phi, and rho_dot
   int n_z = 3;
 
   //create matrix for sigma points in measurement space
